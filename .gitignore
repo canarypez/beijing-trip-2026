@@ -1,0 +1,15 @@
+# 签名密钥：只留在本机，绝不进仓库
+android/*.jks
+android/*.keystore
+
+# 构建中间产物
+android/.build/
+
+# build.sh 从上一级目录复制过来的网页副本，每次构建重新生成
+android/assets/
+
+# apksigner 的 v4 签名中间文件
+*.idsig
+
+# Claude Code 的本机设置
+.claude/settings.local.json

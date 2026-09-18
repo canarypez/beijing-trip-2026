@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="北京 5 日行程">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d8ce8"/>
+      <stop offset="1" stop-color="#1c5cab"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <!-- 定位针 -->
+  <path d="M174.4 285.2 A102 102 0 1 1 337.6 285.2 L256 394 Z" fill="#ffffff"/>
+  <circle cx="256" cy="224" r="42" fill="#2a78d6"/>
+  <circle cx="256" cy="224" r="16" fill="#eb6834"/>
+</svg>

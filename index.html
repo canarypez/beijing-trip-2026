@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>北京 5 日行程 · 2026 国庆（3人）</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* ============ 设计令牌 ============ */
+:root{
+  color-scheme: light;
+  --page:#f9f9f7; --surface:#fcfcfb; --surface-2:#f2f2ee;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --accent:#2a78d6; --accent-soft:rgba(42,120,214,.10);
+  --shadow:0 1px 2px rgba(11,11,11,.06), 0 8px 24px rgba(11,11,11,.06);
+  --r:14px;
+}
+html[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#0d0d0d; --surface:#1a1a19; --surface-2:#232322;
+  --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --accent:#3987e5; --accent-soft:rgba(57,135,229,.16);
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px; line-height:1.65; -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,h4{margin:0; line-height:1.3; font-weight:650}
+
+/* ============ 布局 ============ */
+.wrap{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0; min-height:100vh}
+.mapcol{position:sticky; top:0; height:100vh; background:var(--surface-2); border-right:1px solid var(--border)}
+#map{position:absolute; inset:0}
+.panel{min-width:0; padding:0 0 80px}
+
+@media (max-width:1040px){
+  .wrap{grid-template-columns:1fr}
+  .mapcol{position:sticky; top:0; height:56vh; z-index:20; border-right:none; border-bottom:1px solid var(--border)}
+}
+
+/* ============ 头部 ============ */
+header.top{
+  position:sticky; top:0; z-index:30; background:color-mix(in srgb, var(--page) 92%, transparent);
+  backdrop-filter:blur(12px); border-bottom:1px solid var(--border);
+}
+.top-in{padding:14px 22px 0}
+.title-row{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+.title-row h1{font-size:19px; letter-spacing:-.01em}
+.sub{color:var(--ink-2); font-size:13px}
+.nav{display:flex; gap:6px; overflow-x:auto; padding:11px 0 9px; scrollbar-width:thin}
+.nav button{
+  flex:0 0 auto; border:1px solid var(--border); background:var(--surface); color:var(--ink-2);
+  padding:6px 13px; border-radius:999px; font-size:13.5px; cursor:pointer; font-family:inherit;
+  transition:.15s; white-space:nowrap;
+}
+.nav button:hover{border-color:var(--accent); color:var(--ink)}
+.nav button.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+.tools{margin-left:auto; display:flex; gap:6px; align-items:center}
+.tools button{
+  border:1px solid var(--border); background:var(--surface); color:var(--ink-2);
+  width:34px; height:30px; border-radius:9px; cursor:pointer; font-size:15px; line-height:1;
+}
+.tools button:hover{color:var(--ink); border-color:var(--accent)}
+
+/* ============ 通用卡片 ============ */
+.pad{padding:20px 22px}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 17px; margin-bottom:14px; box-shadow:var(--shadow)}
+.card h3{font-size:16px; margin-bottom:4px}
+.card .cap{color:var(--muted); font-size:12.5px}
+.view{display:none}
+.view.on{display:block}
+
+/* ============ 时间轴 ============ */
+.tl{position:relative; padding-left:0}
+.ev{display:grid; grid-template-columns:64px 1fr; gap:14px; position:relative}
+.ev .time{font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px; font-weight:600; padding-top:15px; text-align:right}
+.ev .body{position:relative; padding:13px 0 13px 20px; border-left:2px solid var(--grid)}
+.ev:last-child .body{border-left-color:transparent}
+.ev .body::before{
+  content:""; position:absolute; left:-7px; top:20px; width:12px; height:12px; border-radius:50%;
+  background:var(--surface); border:2.5px solid var(--accent); box-shadow:0 0 0 3px var(--surface);
+}
+.ev.move .body::before{border-color:var(--muted); width:9px; height:9px; left:-5.5px; top:22px; border-width:2px}
+.ev.meal .body::before{border-color:var(--s2)}
+.ev.tip .body::before{border-color:var(--s4)}
+.ev .h{font-weight:640; font-size:15px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
+.ev .d{color:var(--ink-2); font-size:13.5px; margin-top:3px}
+.ev .d b{color:var(--ink); font-weight:600}
+.tag{
+  font-size:11px; padding:1.5px 7px; border-radius:6px; background:var(--surface-2);
+  color:var(--ink-2); border:1px solid var(--border); font-weight:600;
+}
+
+/* ============ 地铁线路徽章 ============ */
+.line{
+  display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700;
+  padding:2px 8px; border-radius:6px; color:#fff; letter-spacing:.02em; line-height:1.5;
+  vertical-align:middle; white-space:nowrap;
+}
+.line.lt{color:#1a1a19}
+.leg{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
+  padding:10px 12px; margin-top:9px; font-size:13px;
+}
+.leg .row{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.leg .row + .row{margin-top:6px}
+.leg .meta{color:var(--ink-2); font-size:12.5px}
+.leg .fare{margin-left:auto; font-variant-numeric:tabular-nums; color:var(--ink); font-weight:650; font-size:12.5px}
+.warn{
+  background:color-mix(in srgb, var(--warn) 14%, var(--surface));
+  border:1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius:10px; padding:9px 12px; margin-top:9px; font-size:13px; color:var(--ink);
+}
+.warn b{font-weight:700}
+
+/* ============ 景点卡 ============ */
+.poi{display:grid; grid-template-columns:1fr auto; gap:6px 12px; align-items:start}
+.poi .nm{font-size:16px; font-weight:660}
+.poi .price{font-variant-numeric:tabular-nums; font-weight:700; font-size:14px; color:var(--ink); white-space:nowrap}
+.links{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px}
+.links a, .links button{
+  font-size:12.5px; padding:4px 10px; border-radius:8px; border:1px solid var(--border);
+  background:var(--surface-2); color:var(--ink-2); cursor:pointer; font-family:inherit;
+  display:inline-flex; align-items:center; gap:4px; text-decoration:none;
+}
+.links a:hover, .links button:hover{border-color:var(--accent); color:var(--accent); text-decoration:none}
+.links a.pri{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+.links a.pri:hover{color:#fff; opacity:.9}
+.kv{display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:13px; margin-top:9px; color:var(--ink-2)}
+.kv dt{color:var(--muted); white-space:nowrap}
+.kv dd{margin:0}
+
+/* ============ 统计块 ============ */
+.hero{font-size:52px; font-weight:680; letter-spacing:-.03em; line-height:1.05}
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin:14px 0 4px}
+.tile{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:13px 14px}
+.tile .l{font-size:12px; color:var(--muted)}
+.tile .v{font-size:24px; font-weight:660; letter-spacing:-.02em; margin-top:2px}
+.tile .s{font-size:11.5px; color:var(--ink-2); margin-top:1px}
+
+/* ============ 条形图 ============ */
+.chart{margin-top:6px}
+.brow{display:grid; grid-template-columns:96px 1fr; gap:12px; align-items:center; padding:5px 0}
+.brow .bl{font-size:13px; color:var(--ink-2); text-align:right}
+.btrack{position:relative; height:24px; display:flex; align-items:center; border-radius:4px}
+.btrack::after{content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background:var(--grid)}
+.bfill{height:22px; background:var(--s1); border-radius:0 4px 4px 0; min-width:2px; transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.bval{font-size:12.5px; font-variant-numeric:tabular-nums; color:var(--ink); font-weight:640; margin-left:9px; white-space:nowrap}
+.brow:hover .btrack{background:var(--accent-soft)}
+
+/* ============ 表格 ============ */
+table{width:100%; border-collapse:collapse; font-size:13.5px}
+th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--grid); vertical-align:top}
+th{color:var(--muted); font-weight:600; font-size:12px; white-space:nowrap}
+td.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tfoot td{font-weight:700; border-top:1px solid var(--axis)}
+
+input[type=number]{
+  width:92px; padding:5px 8px; border:1px solid var(--border); border-radius:8px;
+  background:var(--surface-2); color:var(--ink); font-family:inherit; font-size:14px;
+  font-variant-numeric:tabular-nums;
+}
+
+/* ============ 预约日历 ============ */
+.resv{display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--grid); align-items:flex-start}
+.resv:last-child{border-bottom:none}
+.cd{flex:0 0 74px; text-align:center; border-radius:10px; padding:7px 4px; border:1px solid var(--border); background:var(--surface-2)}
+.cd .n{font-size:23px; font-weight:680; line-height:1.1; font-variant-numeric:tabular-nums}
+.cd .u{font-size:10.5px; color:var(--muted)}
+.cd.hot{background:color-mix(in srgb,var(--crit) 13%,var(--surface)); border-color:color-mix(in srgb,var(--crit) 45%,var(--border))}
+.cd.soon{background:color-mix(in srgb,var(--warn) 16%,var(--surface)); border-color:color-mix(in srgb,var(--warn) 50%,var(--border))}
+.cd.done{opacity:.45}
+.resv .rb{flex:1; min-width:0}
+.resv .rt{font-weight:630; font-size:14.5px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap}
+
+/* ============ 地图控件 ============ */
+.mapbox{
+  position:absolute; left:12px; top:12px; z-index:600; display:flex; flex-direction:column; gap:8px; max-width:min(340px,72vw);
+}
+.mcard{background:color-mix(in srgb,var(--surface) 95%,transparent); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:12px; padding:9px 11px; box-shadow:var(--shadow)}
+.mcard .t{font-size:11.5px; color:var(--muted); margin-bottom:6px; font-weight:600; letter-spacing:.02em}
+.seg{display:flex; gap:4px; flex-wrap:wrap}
+.seg button{
+  border:1px solid var(--border); background:var(--surface-2); color:var(--ink-2);
+  font-size:12px; padding:4px 9px; border-radius:7px; cursor:pointer; font-family:inherit;
+}
+.seg button.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+#gps{margin-top:6px; font-size:12.5px; color:var(--ink-2); line-height:1.5}
+#gps b{color:var(--ink); font-variant-numeric:tabular-nums}
+.maplegend{
+  position:absolute; right:12px; bottom:22px; z-index:600;
+  background:color-mix(in srgb,var(--surface) 95%,transparent); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:12px; padding:9px 12px; font-size:12px;
+  box-shadow:var(--shadow); max-width:230px;
+}
+.maplegend .li{display:flex; align-items:center; gap:7px; padding:2px 0; color:var(--ink-2)}
+.maplegend .dot{width:10px; height:10px; border-radius:50%; flex:0 0 auto}
+.leaflet-popup-content{font-size:13px; line-height:1.55; font-family:inherit}
+.leaflet-popup-content b{font-size:14px}
+.leaflet-container{background:var(--surface-2); font-family:inherit}
+/* 高德无深色瓦片，深色模式下压暗底图避免刺眼 */
+html[data-theme="dark"] .leaflet-tile-pane{filter:brightness(.72) saturate(.78) contrast(1.06)}
+html[data-theme="dark"] .leaflet-control-attribution{background:rgba(0,0,0,.6)!important; color:var(--muted)}
+html[data-theme="dark"] .leaflet-bar a{background:var(--surface); color:var(--ink); border-color:var(--border)}
+html[data-theme="dark"] .leaflet-bar a:hover{background:var(--surface-2)}
+.pnum{
+  background:var(--accent); color:#fff; border-radius:50%; width:24px; height:24px;
+  display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+  border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.35);
+}
+.pnum.base{background:var(--s2)}
+.pnum.dot{width:14px; height:14px; background:var(--s3); border-width:2px}
+
+/* ============ 杂项 ============ */
+.note{font-size:12.5px; color:var(--muted); line-height:1.6}
+.pill{display:inline-block; font-size:11.5px; padding:1.5px 8px; border-radius:999px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink-2)}
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px}
+.hr{height:1px; background:var(--grid); margin:16px 0}
+.badge-ok{color:var(--good); font-weight:650}
+.badge-no{color:var(--crit); font-weight:650}
+.badge-warn{color:var(--serious); font-weight:650}
+details{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:9px 12px; margin-top:9px}
+details summary{cursor:pointer; font-size:13.5px; font-weight:600; color:var(--ink-2)}
+details[open] summary{margin-bottom:7px}
+@media print{
+  .mapcol,.nav,.tools{display:none}
+  .wrap{grid-template-columns:1fr}
+  .view{display:block !important}
+  body{font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= 地图列 ================= -->
+  <div class="mapcol">
+    <div id="map"></div>
+
+    <div class="mapbox">
+      <div class="mcard">
+        <div class="t">底图</div>
+        <div class="seg" id="baseSeg">
+          <button data-b="amap" class="on">高德路网</button>
+          <button data-b="amapsat">卫星</button>
+          <button data-b="osm">OSM</button>
+        </div>
+      </div>
+      <div class="mcard">
+        <div class="t">我的位置</div>
+        <div class="seg">
+          <button id="btnLoc">📍 定位我</button>
+          <button id="btnNav">🧭 去下一站</button>
+        </div>
+        <div id="gps">未定位 · 点击「定位我」获取 GPS</div>
+      </div>
+    </div>
+
+    <div class="maplegend" id="legend"></div>
+  </div>
+
+  <!-- ================= 内容列 ================= -->
+  <div class="panel">
+    <header class="top">
+      <div class="top-in">
+        <div class="title-row">
+          <h1>北京 5 日 · 2026 国庆</h1>
+          <span class="sub">3 人 · 10/1 晚抵京 · 住北宫森林公园一带</span>
+          <div class="tools">
+            <button id="btnTheme" title="切换深浅色">◐</button>
+            <button id="btnPrint" title="打印 / 存 PDF">⎙</button>
+          </div>
+        </div>
+        <nav class="nav" id="nav"></nav>
+      </div>
+    </header>
+    <div id="views" class="pad"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* =====================================================================
+   1. 坐标与坐标系统
+   WGS-84（GPS 原生）→ GCJ-02（高德/腾讯底图）偏移纠正
+   ===================================================================== */
+const X_PI = Math.PI * 3000 / 180, PI = Math.PI, A = 6378245.0, EE = 0.00669342162296594323;
+function outOfChina(lng, lat){ return !(lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55); }
+function tLat(x, y){
+  let r = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+  r += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
+  r += (20*Math.sin(y*PI) + 40*Math.sin(y/3*PI)) * 2/3;
+  r += (160*Math.sin(y/12*PI) + 320*Math.sin(y*PI/30.0)) * 2/3;
+  return r;
+}
+function tLng(x, y){
+  let r = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+  r += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
+  r += (20*Math.sin(x*PI) + 40*Math.sin(x/3*PI)) * 2/3;
+  r += (150*Math.sin(x/12*PI) + 300*Math.sin(x/30*PI)) * 2/3;
+  return r;
+}
+function wgs2gcj(lng, lat){
+  if (outOfChina(lng, lat)) return [lng, lat];
+  let dLat = tLat(lng-105, lat-35), dLng = tLng(lng-105, lat-35);
+  const rad = lat / 180 * PI, m = Math.sin(rad);
+  let magic = 1 - EE*m*m;
+  const sq = Math.sqrt(magic);
+  dLat = (dLat*180) / ((A*(1-EE)) / (magic*sq) * PI);
+  dLng = (dLng*180) / (A/sq*Math.cos(rad)*PI);
+  return [lng + dLng, lat + dLat];
+}
+// 当前底图是否需要 GCJ-02
+let needGcj = true;
+const P2 = (lat, lng) => needGcj ? (([a,b]) => [b,a])(wgs2gcj(lng, lat)) : [lat, lng];
+
+/* =====================================================================
+   2. 地点数据（坐标为 WGS-84 近似值）
+   ===================================================================== */
+const P = {
+  home:      { n:'住处 · 北宫森林公园一带', lat:39.8690, lng:116.1200, k:'base',
+               addr:'北京市丰台区大灰厂东路 55 号附近',
+               note:'南门/售票处距公交站约 2 km，步行 20–30 分钟；公园本身免票（彩叶季 10/1–11/20 需免费预约）' },
+  zhangguozhuang:{ n:'张郭庄站（14 号线）', lat:39.8583, lng:116.1725, k:'hub',
+               note:'离住处最近的地铁站（约 4–5 km）。A 口出站换乘 574 / 843 路到「北宫森林公园」站' },
+  tiananmen: { n:'天安门广场', lat:39.9055, lng:116.3976, k:'poi', price:'免费（须预约）',
+               resv:'微信小程序「天安门广场预约参观」', ticketUrl:'https://www.tiananmen.org.cn/',
+               hours:'升旗约 06:10 / 08:30–18:00（分时段入场）', dur:'1 小时',
+               note:'升旗时段最难抢；超时作废。预约国博当天可凭记录免约进入广场（非升旗时段）' },
+  gugong:    { n:'故宫博物院', lat:39.9163, lng:116.3972, k:'poi', price:'60 元 + 珍宝馆 10 + 钟表馆 10',
+               resv:'微信小程序「故宫博物院」', ticketUrl:'https://ticket.dpm.org.cn/',
+               hours:'08:30–17:00（周一闭馆，法定节假日除外）', dur:'4 小时',
+               note:'不售当日票。提前 7 日 20:00 准时放票。午门进、神武门出，单向参观' },
+  jingshan:  { n:'景山公园', lat:39.9247, lng:116.3966, k:'poi', price:'2 元',
+               resv:'现场购票 / 扫码', ticketUrl:'',
+               hours:'06:30–21:00', dur:'1 小时',
+               note:'万春亭是俯瞰故宫全景的唯一高点，出神武门过马路即到' },
+  shichahai: { n:'什刹海 · 后海', lat:39.9400, lng:116.3880, k:'poi', price:'免费',
+               resv:'无需预约', ticketUrl:'', hours:'全天', dur:'1.5 小时',
+               note:'银锭桥、烟袋斜街、恭王府（需另约）；傍晚光线最好' },
+  nanluoguxiang:{ n:'南锣鼓巷', lat:39.9370, lng:116.4030, k:'poi', price:'免费', resv:'无需预约',
+               ticketUrl:'', hours:'全天（店铺 10:00–22:00）', dur:'1.5 小时', note:'8 号线南锣鼓巷站，回程方便' },
+  qianmen:   { n:'前门大街 · 大栅栏', lat:39.8965, lng:116.3980, k:'poi', price:'免费', resv:'无需预约',
+               ticketUrl:'', hours:'全天', dur:'1.5 小时', note:'老字号聚集：全聚德、都一处、瑞蚨祥' },
+  wangfujing:{ n:'王府井', lat:39.9145, lng:116.4100, k:'poi', price:'免费', resv:'无需预约',
+               ticketUrl:'', hours:'10:00–22:00', dur:'1.5 小时', note:'1 号线 / 8 号线王府井站；国庆期间 C 口可能封闭' },
+  guobo:     { n:'中国国家博物馆', lat:39.9055, lng:116.4022, k:'poi', price:'免费（须预约）',
+               resv:'「国家博物馆」公众号 / 小程序', ticketUrl:'https://www.chnmuseum.cn/',
+               hours:'09:00–17:30（16:30 停止入馆，周一闭馆）', dur:'4 小时',
+               note:'提前 7 日 17:00 放票；每账号每周限约 1 次，每次最多 5 人。6/1–10/31 延长至 17:30' },
+  dongwuyuan:{ n:'北京动物园', lat:39.9398, lng:116.3388, k:'poi', price:'联票 19 元（含熊猫馆）',
+               resv:'「北京动物园购票平台」公众号', ticketUrl:'https://www.beijingzoo.com/',
+               hours:'07:30–18:00（熊猫馆 08:00–18:00）', dur:'3 小时',
+               note:'大熊猫馆新馆 2026/7/16 开放。熊猫上午最活跃；出馆再进需重新购票' },
+  badaling:  { n:'八达岭长城', lat:40.3585, lng:116.0140, k:'poi', price:'40 元（旺季）+ 索道往返 140',
+               resv:'「八达岭长城」公众号 /「长城内外旅游」小程序', ticketUrl:'https://www.badaling.cn/',
+               hours:'06:30–16:30（16:30 停止入园）', dur:'5 小时',
+               note:'现场无售票窗口，必须实名分时预约。高铁八达岭长城站出站右转＝北线索道，左转＝南线地缆' },
+  universal: { n:'北京环球度假区', lat:39.8567, lng:116.6735, k:'poi', price:'特定日约 748 元',
+               resv:'北京环球度假区 官方 App / 小程序 / 飞猪旗舰店', ticketUrl:'https://www.universalbeijingresort.com/',
+               hours:'约 09:00–21:00（国庆常延时）', dur:'全天 12 小时',
+               note:'实名制指定日票。90 天滚动放票，国庆属最高档「特定日」。优速通另购' },
+  pku:       { n:'北京大学', lat:39.9925, lng:116.3055, k:'poi', price:'免费（须预约）',
+               resv:'微信小程序「参观北大」', ticketUrl:'https://www.pku.edu.cn/',
+               hours:'参观当日 19:00 前须离校', dur:'2.5 小时',
+               note:'东侧门入校（4 号线北京大学东门站 A 口）。预约成功后 90 天内不可重复预约' },
+  thu:       { n:'清华大学', lat:39.9995, lng:116.3120, k:'poi', price:'免费（须预约）',
+               resv:'微信小程序「参观清华」', ticketUrl:'https://www.tsinghua.edu.cn/',
+               hours:'入校时段 08:00–11:00、13:00–16:00（每周一闭校）', dur:'2.5 小时',
+               note:'西门南侧个人访客专用通道入校。预约成功后 180 天内不可重复预约' },
+  yuanmingyuan:{ n:'圆明园', lat:40.0043, lng:116.3010, k:'poi', price:'联票 25 元（含西洋楼遗址）',
+               resv:'「圆明园遗址公园」公众号', ticketUrl:'http://www.yuanmingyuanpark.cn/',
+               hours:'07:00–19:00', dur:'2 小时',
+               note:'单买大门票 10 + 西洋楼 15 + 沙盘 10 = 35 元，看大水法直接买联票省 10 元' },
+  yiheyuan:  { n:'颐和园', lat:39.9998, lng:116.2755, k:'poi', price:'门票 30 元 / 联票 60 元',
+               resv:'「颐和园」公众号', ticketUrl:'https://www.summerpalace-china.com/',
+               hours:'06:30–18:00（园中园周一闭馆）', dur:'3 小时',
+               note:'只逛昆明湖、长廊、十七孔桥买大门票即可；要去佛香阁、苏州街买联票' },
+  qinghe:    { n:'清河站（京张高铁）', lat:40.0340, lng:116.3130, k:'hub',
+               note:'13 号线 / 昌平线可达。乘京张高铁约 25 分钟直达八达岭长城站' },
+  beijingbei:{ n:'北京北站（西直门）', lat:39.9445, lng:116.3530, k:'hub',
+               note:'2/4/13 号线西直门站。京张高铁另一个始发站，到八达岭约 30 分钟' },
+  beijingnan:{ n:'北京南站', lat:39.8650, lng:116.3786, k:'hub', note:'4 号线 / 14 号线换乘枢纽' },
+  yongdingmenwai:{ n:'永定门外站', lat:39.8680, lng:116.4030, k:'hub', note:'8 号线 / 14 号线换乘' },
+  xidan:     { n:'西单站', lat:39.9070, lng:116.3740, k:'hub', note:'1 号线 / 4 号线换乘' },
+  xiju:      { n:'西局站', lat:39.8720, lng:116.3080, k:'hub', note:'10 号线 / 14 号线换乘' },
+  zhichunlu: { n:'知春路站', lat:39.9770, lng:116.3350, k:'hub', note:'10 号线 / 13 号线换乘' },
+  jiulongshan:{ n:'九龙山站', lat:39.8870, lng:116.4640, k:'hub', note:'7 号线 / 14 号线换乘' },
+  wudaokou:  { n:'五道口', lat:39.9925, lng:116.3375, k:'poi', price:'—', resv:'—', ticketUrl:'',
+               hours:'—', dur:'1 小时', note:'13 号线五道口站，清华北大之间的餐饮聚集地' },
+  aolinpike: { n:'奥林匹克公园（鸟巢·水立方）', lat:39.9930, lng:116.3900, k:'poi', price:'外观免费',
+               resv:'鸟巢入内需购票', ticketUrl:'', hours:'全天', dur:'1.5 小时', note:'长城返程顺路可加，8 号线奥林匹克公园站' }
+};
+
+/* 北京地铁线路官方色 */
+const LC = {
+  '1号线八通线':'#C23A30','2号线':'#006098','4号线大兴线':'#008E9C','5号线':'#A6217F',
+  '6号线':'#D29700','7号线':'#D9A05B','8号线':'#009B6B','9号线':'#8FC31F','10号线':'#009BC0',
+  '13号线':'#E8D400','14号线':'#B67770','昌平线':'#DB5A9C','京张高铁':'#6B7280','S2线':'#6B7280'
+};
+const LIGHT_LINES = ['13号线','9号线'];   // 浅色线路徽章用深色字
+
+/* =====================================================================
+   3. 行程数据
+   ===================================================================== */
+const DAYS = [
+{
+  id:'d0', tab:'10/1 抵京', date:'2026-10-01', dow:'周四', theme:'落地 · 入住 · 补给',
+  stops:['home'],
+  plan:[
+    { t:'—', type:'move', h:'抵达北京', d:'视到达站点选择路线（下方按三个主要车站列出）。国庆首日交通压力最大，建议预留缓冲。' },
+    { t:'第 1 段', type:'move', h:'若抵达 <b>北京南站</b>', d:'北京南站 → <span class="line" style="background:#B67770">14号线</span> 善各庄方向 → 张郭庄（11 站，约 23 分钟，6 元）→ A 口出站打车至住处（约 4–5 km，15 元）',
+      legs:[{lines:[['14号线','善各庄方向',11,23]], min:23, fare:'6 元'}] },
+    { t:'第 2 段', type:'move', h:'若抵达 <b>北京西站</b>', d:'北京西站 → <span class="line" style="background:#D9A05B">7号线</span> → 北京南站（换 <span class="line" style="background:#008E9C">4号线大兴线</span> 或 <span class="line" style="background:#B67770">14号线</span>）→ 张郭庄；或直接打车经西六环，约 22 km / 60 元 / 35 分钟',
+      legs:[{lines:[['7号线','环球度假区方向',1,3],['14号线','张郭庄方向',11,23]], min:45, fare:'6 元'}] },
+    { t:'第 3 段', type:'move', h:'若抵达 <b>首都机场 / 大兴机场</b>', d:'大兴机场 → 大兴机场线 → 草桥（换 10 号线）→ 西局（换 14 号线）→ 张郭庄，约 1 小时 40 分 / 40 元。首都机场 → 机场线 → 三元桥（换 10 号线）→ 西局 → 张郭庄，约 1 小时 50 分 / 30 元',
+      legs:[{lines:[['大兴机场线','草桥',2,20],['10号线','外环',4,12],['14号线','张郭庄方向',6,12]], min:100, fare:'约 40 元'}] },
+    { t:'21:30', type:'meal', h:'入住 + 就近补给', d:'北宫一带属于郊区，夜间餐饮选择少。建议在<b>张郭庄</b>或<b>云岗</b>解决晚饭，并在超市买齐后几天的<b>干粮、水、充电宝</b>——次日 05:50 就要出发。' },
+    { t:'22:30', type:'tip', h:'今晚必做的三件事', d:'① 12306 抢 10/4 京张高铁<b>往返</b>票；② 微信里提前把 3 人身份证号存进备忘录，抢票时直接粘贴；③ 给手机装好「亿通行」App（北京地铁扫码乘车）。' }
+  ]
+},
+{
+  id:'d1', tab:'10/2 D1', date:'2026-10-02', dow:'周五', theme:'中轴线 · 天安门 + 故宫 + 什刹海',
+  stops:['zhangguozhuang','tiananmen','gugong','jingshan','shichahai','nanluoguxiang'],
+  plan:[
+    { t:'05:50', type:'move', h:'住处出发', d:'打车到张郭庄站（约 4–5 km，15 元，15 分钟）。<b>今天必须赶早</b>——天安门东/西站 08:00–18:00 封闭，只有 06:30–08:00 能出站。',
+      legs:[{lines:[], min:15, fare:'约 15 元（3 人分摊 5 元/人）'}] },
+    { t:'06:20', type:'move', h:'张郭庄 → 天安门西', d:'<span class="line" style="background:#B67770">14号线</span> 善各庄方向 11 站 → 北京南站 → 换 <span class="line" style="background:#008E9C">4号线大兴线</span> 安河桥北方向 3 站 → 西单 → 换 <span class="line" style="background:#C23A30">1号线八通线</span> 苹果园方向 1 站 → 天安门西',
+      legs:[{lines:[['14号线','善各庄方向',11,23],['4号线大兴线','安河桥北方向',3,8],['1号线八通线','苹果园方向',1,3]], min:50, fare:'6 元'}],
+      warn:'<b>封站预警</b>：10/2–10/6 期间，1 号线天安门东/西站首班车–06:30 封闭、06:30–08:00 <b>只出不进</b>、08:00–18:00 全封、18:00 后恢复。天安门西站 A 口、天安门东站 D 口全期封闭。' },
+    { t:'07:10', type:'poi', h:'天安门广场 · 看升旗 + 拍照', poi:'tiananmen', d:'出站后过安检进入广场。升旗约 06:10 已结束，若一定要看升旗需再提前 1 小时（04:30 出发）。广场需<b>提前预约</b>。' },
+    { t:'08:00', type:'move', h:'穿天安门城楼 → 端门 → 午门', d:'从广场北侧穿过天安门门洞，经端门到午门检票。全程步行约 15 分钟，需二次安检。' },
+    { t:'08:30', type:'poi', h:'故宫博物院（4 小时）', poi:'gugong', d:'推荐动线：午门 → 太和殿 → 中和殿 → 保和殿 → <b>珍宝馆</b>（10 元，宁寿宫）→ 钟表馆（10 元）→ 乾清宫 → 御花园 → 神武门出。上午人少，先走中轴线。' },
+    { t:'12:30', type:'poi', h:'景山公园 · 万春亭', poi:'jingshan', d:'出神武门过马路即到。爬约 15 分钟登顶，是俯瞰故宫全景的唯一高点，必去。' },
+    { t:'13:15', type:'meal', h:'午餐 · 地安门 / 什刹海', d:'推荐：护国寺小吃（地安门店）、姚记炒肝、烤肉季。人均 40–60 元。' },
+    { t:'15:00', type:'poi', h:'什刹海 · 后海 · 烟袋斜街', poi:'shichahai', d:'沿湖慢走，可坐三轮车逛胡同（约 80–120 元/车，可砍价）。' },
+    { t:'17:30', type:'poi', h:'南锣鼓巷', poi:'nanluoguxiang', d:'从什刹海步行约 20 分钟可达。小吃街 + 胡同，晚饭可在此解决。' },
+    { t:'20:00', type:'move', h:'返程', d:'南锣鼓巷站 <span class="line" style="background:#009B6B">8号线</span> 瀛海方向 7 站 → 永定门外 → 换 <span class="line" style="background:#B67770">14号线</span> 张郭庄方向 13 站 → 张郭庄 → 打车回住处',
+      legs:[{lines:[['8号线','瀛海方向',7,15],['14号线','张郭庄方向',13,27]], min:60, fare:'6 元 + 打车 15 元'}] }
+  ]
+},
+{
+  id:'d2', tab:'10/3 D2', date:'2026-10-03', dow:'周六', theme:'国博 + 动物园（4 号线一线串起）',
+  stops:['zhangguozhuang','guobo','qianmen','dongwuyuan','xizhimen'],
+  plan:[
+    { t:'07:20', type:'move', h:'住处出发 → 国家博物馆', d:'打车至张郭庄 → <span class="line" style="background:#B67770">14号线</span> 13 站 → 永定门外 → 换 <span class="line" style="background:#009B6B">8号线</span> 4 站 → 王府井 → <b>步行 1.4 km</b>（约 20 分钟，沿东长安街西行）至国博北门',
+      legs:[{lines:[['14号线','善各庄方向',13,27],['8号线','瀛海方向',4,9]], min:70, fare:'6 元'}],
+      warn:'<b>不能从天安门东站出站</b>（08:00–18:00 封闭）。王府井站下车步行是唯一稳妥走法。' },
+    { t:'09:00', type:'poi', h:'中国国家博物馆（4 小时）', poi:'guobo', d:'预约时段 09:00–11:00 入场。必看：<b>地下一层「古代中国」基本陈列</b>（后母戊鼎、四羊方尊）、「复兴之路」。馆内极大，穿舒适的鞋。' },
+    { t:'13:00', type:'meal', h:'午餐 · 前门大街 / 大栅栏', poi:'qianmen', d:'从国博南侧步行约 15 分钟到前门大街。推荐：都一处烧麦、便宜坊烤鸭、四季民福。人均 60–90 元。' },
+    { t:'14:30', type:'move', h:'前门 → 北京动物园', d:'步行至 <span class="line" style="background:#C23A30">1号线八通线</span> 王府井站 → 西单 → 换 <span class="line" style="background:#008E9C">4号线大兴线</span> 安河桥北方向 3 站 → 动物园站（B 口出即正门）',
+      legs:[{lines:[['1号线八通线','苹果园方向',1,3],['4号线大兴线','安河桥北方向',3,8]], min:30, fare:'4 元'}] },
+    { t:'15:00', type:'poi', h:'北京动物园 + 大熊猫馆（3 小时）', poi:'dongwuyuan', d:'正门进 → 大熊猫馆（新馆 2026/7 开放，必去）→ 猴山 → 狮虎山 → 水禽湖。熊猫馆 18:00 关，先看熊猫。<b>出熊猫馆再进需重新购票</b>。' },
+    { t:'18:30', type:'meal', h:'晚餐 · 西直门', poi:'xizhimen', d:'动物园正门对面即西直门商圈（凯德MALL / 西环广场），餐饮选择多。人均 60–100 元。' },
+    { t:'20:00', type:'move', h:'返程', d:'动物园站 <span class="line" style="background:#008E9C">4号线大兴线</span> 天宫院方向 8 站 → 北京南站 → 换 <span class="line" style="background:#B67770">14号线</span> 张郭庄方向 11 站 → 张郭庄 → 打车回住处',
+      legs:[{lines:[['4号线大兴线','天宫院方向',8,18],['14号线','张郭庄方向',11,23]], min:55, fare:'6 元 + 打车 15 元'}] }
+  ]
+},
+{
+  id:'d3', tab:'10/4 D3', date:'2026-10-04', dow:'周日', theme:'长城一日 · 京张高铁往返',
+  stops:['zhangguozhuang','xiju','zhichunlu','qinghe','badaling'],
+  plan:[
+    { t:'05:50', type:'move', h:'住处出发 → 清河站', d:'打车至张郭庄 → <span class="line" style="background:#B67770">14号线</span> 6 站 → 西局 → 换 <span class="line" style="background:#009BC0">10号线</span> 13 站 → 知春路 → 换 <span class="line lt" style="background:#E8D400">13号线</span> 3 站 → 清河站',
+      legs:[{lines:[['14号线','善各庄方向',6,12],['10号线','内环（巴沟方向）',13,28],['13号线','东直门方向',3,8]], min:65, fare:'6 元'}] },
+    { t:'07:20', type:'move', h:'清河站 → 八达岭长城站（京张高铁）', d:'<span class="line" style="background:#6B7280">京张高铁</span> 约 25 分钟直达，二等座约 <b>25 元</b>。建议乘 07:30–08:30 班次。返程票务必一并买好（下午班次紧张）。',
+      legs:[{lines:[['京张高铁','八达岭长城方向',1,25]], min:25, fare:'25 元（往返约 50 元）'}] },
+    { t:'08:30', type:'poi', h:'八达岭长城（5 小时）', poi:'badaling', d:'出站<b>右转</b>＝北线索道入口（直达北七楼），<b>左转</b>＝南线地面缆车。推荐：北线索道上 → 步行北八楼「好汉坡」→ 步行下山。体力一般就买索道往返。' },
+    { t:'14:30', type:'move', h:'返程', d:'八达岭长城站 → 清河站（约 25 分钟）。出站后 13 号线回市区。',
+      legs:[{lines:[['京张高铁','清河方向',1,25]], min:25, fare:'25 元'}] },
+    { t:'16:30', type:'tip', h:'可选加站 · 奥林匹克公园', poi:'aolinpike', d:'清河站 → 13 号线 → 霍营 → 换 8 号线 → 奥林匹克公园站，看鸟巢、水立方夜景（外观免费）。若太累可跳过，直接回住处休息——明天是环球影城 12 小时硬仗。' },
+    { t:'18:30', type:'meal', h:'晚餐 · 五道口 / 回住处', poi:'wudaokou', d:'五道口餐饮密集（人均 50–80 元），或直接回北宫一带解决。' }
+  ]
+},
+{
+  id:'d4', tab:'10/5 D4', date:'2026-10-05', dow:'周一', theme:'环球影城 全天（12 小时）',
+  stops:['zhangguozhuang','jiulongshan','universal'],
+  plan:[
+    { t:'06:30', type:'move', h:'住处出发 → 环球度假区', d:'打车至张郭庄 → <span class="line" style="background:#B67770">14号线</span> 善各庄方向 20 站 → 九龙山 → 换 <span class="line" style="background:#D9A05B">7号线</span> 环球度假区方向 15 站 → 环球度假区站',
+      legs:[{lines:[['14号线','善各庄方向',20,45],['7号线','环球度假区方向',15,40]], min:105, fare:'9 元'}],
+      warn:'<b>单程约 1 小时 45 分</b>，是全程最远的一段。3 人同行建议直接<b>网约车</b>：约 50 km / 130–180 元 / 70 分钟，分摊后与地铁差价不大，但能省 40 分钟且直达闸机口。' },
+    { t:'08:30', type:'poi', h:'北京环球度假区（开园至闭园）', poi:'universal', d:'务必提前下载<b>官方 App</b>：看实时排队、抢优速通、领电子票。开园前 1 小时到闸机。' },
+    { t:'—', type:'tip', h:'必玩清单（按优先级）', d:'① 哈利·波特与禁忌之旅　② 霸天虎过山车　③ 变形金刚：火种源争夺战　④ 侏罗纪世界大冒险　⑤ 小黄人闹翻天　⑥ 功夫熊猫盖世之地。演出：《不可驯服》《未来水世界》。' },
+    { t:'—', type:'tip', h:'省钱 & 省时', d:'① 优速通国庆约 500–1200 元/人，预算紧就靠「早进园先冲热门 + 利用花车巡游时段刷项目」；② 园内餐饮贵，可带未开封零食和水（园区允许）；③ 存包柜按小时计费。' },
+    { t:'21:00', type:'move', h:'返程', d:'环球度假区站 → <span class="line" style="background:#D9A05B">7号线</span> → 九龙山 → 换 <span class="line" style="background:#B67770">14号线</span> → 张郭庄 → 打车回住处。闭园时段地铁极挤，可考虑网约车。',
+      legs:[{lines:[['7号线','北京西站方向',15,40],['14号线','张郭庄方向',20,45]], min:105, fare:'9 元'}] }
+  ]
+},
+{
+  id:'d5', tab:'10/6 D5', date:'2026-10-06', dow:'周二', theme:'清北 + 圆明园（海淀一线）',
+  stops:['zhangguozhuang','beijingnan','pku','yuanmingyuan','thu','wudaokou'],
+  plan:[
+    { t:'06:50', type:'move', h:'住处出发 → 北京大学东门', d:'打车至张郭庄 → <span class="line" style="background:#B67770">14号线</span> 11 站 → 北京南站 → 换 <span class="line" style="background:#008E9C">4号线大兴线</span> 安河桥北方向 16 站 → 北京大学东门站',
+      legs:[{lines:[['14号线','善各庄方向',11,23],['4号线大兴线','安河桥北方向',16,34]], min:75, fare:'7 元'}] },
+    { t:'08:30', type:'poi', h:'北京大学（2.5 小时）', poi:'pku', d:'<b>东侧门入校</b>（4 号线北京大学东门站 A 口）。动线：未名湖 → 博雅塔 → 图书馆 → 西门（华表）→ 勺园。参观当日 19:00 前须离校。' },
+    { t:'11:15', type:'move', h:'北大 → 清华', d:'打车约 3 km / 12 元 / 12 分钟最省事；或 4 号线北京大学东门 → 圆明园站（2 站），再步行至清华西门。',
+      legs:[{lines:[], min:15, fare:'约 12 元（3 人分摊 4 元）'}] },
+    { t:'11:30', type:'meal', h:'午餐 · 五道口 / 中关村', poi:'wudaokou', d:'清华西门到五道口步行约 15 分钟，餐饮密集。人均 50–80 元。' },
+    { t:'13:00', type:'poi', h:'清华大学（2.5 小时）', poi:'thu', d:'<b>西门南侧个人访客专用通道</b>入校（入校时段 13:00–16:00）。动线：二校门 → 大礼堂 → 清华学堂 → 朱自清笔下荷塘 → 主楼。' },
+    { t:'16:00', type:'poi', h:'圆明园（2 小时）', poi:'yuanmingyuan', d:'清华西门步行约 1 km 即到圆明园东门/南门。重点：<b>西洋楼遗址 · 大水法</b>、全景沙盘模型。买联票 25 元最划算。' },
+    { t:'18:30', type:'meal', h:'晚餐 · 五道口', d:'圆明园站 4 号线回五道口（3 站）或就近解决。人均 50–80 元。' },
+    { t:'20:00', type:'move', h:'返程 / 次日返程准备', d:'圆明园站 <span class="line" style="background:#008E9C">4号线大兴线</span> 天宫院方向 16 站 → 北京南站 → 换 <span class="line" style="background:#B67770">14号线</span> 11 站 → 张郭庄 → 打车回住处。若次日离京，今晚整理行李并确认明日车次。',
+      legs:[{lines:[['4号线大兴线','天宫院方向',16,34],['14号线','张郭庄方向',11,23]], min:75, fare:'7 元'}] }
+  ]
+}
+];
+
+/* =====================================================================
+   4. 预算数据
+   ===================================================================== */
+const TICKETS = [
+  ['故宫博物院（大门票）', 60, '旺季 4/1–10/31'],
+  ['故宫 · 珍宝馆', 10, '建议加购'],
+  ['故宫 · 钟表馆', 10, '建议加购'],
+  ['景山公园', 2, '现场买'],
+  ['天安门广场', 0, '免费，须预约'],
+  ['中国国家博物馆', 0, '免费，须预约'],
+  ['北京动物园联票（含熊猫馆）', 19, '旺季'],
+  ['八达岭长城', 40, '旺季'],
+  ['八达岭北线索道往返', 140, '可选，省力'],
+  ['北京环球影城一日票', 748, '特定日预估'],
+  ['圆明园联票', 25, '含西洋楼遗址'],
+  ['清华大学 / 北京大学', 0, '免费，须预约']
+];
+const TRANSPORT = [
+  ['地铁（5 天）', 90, '单程 6–9 元，约 14 段'],
+  ['京张高铁往返（清河↔八达岭）', 50, '二等座 25×2'],
+  ['住处↔张郭庄 打车', 150, '约 10 次 × 15 元'],
+  ['环球影城日 网约车（可选）', 0, '3人分摊 人均约 50'],
+];
+const MEALS_PER_DAY = 150;
+let HOTEL_DEFAULT = 450;   // 三人房/家庭房 每晚（可在预算页修改）
+let HOTEL_NIGHTS = 5;
+const OPTIONAL = [
+  ['环球影城优速通', 600, '国庆 500–1200，强烈建议至少买 1 次'],
+  ['长城滑车（替代缆车）', 120, '往返'],
+  ['什刹海三轮车', 40, '约 120 元/车 ÷ 3'],
+  ['纪念品 / 零食 / 寄存', 200, '弹性'],
+];
+
+/* =====================================================================
+   5. 预约日历（按行程日期推算放票日）
+   ===================================================================== */
+const RESV = [
+  { target:'2026-10-04', name:'京张高铁车票（10/4 往返）', open:'2026-09-19', time:'按 12306 起售时间',
+    channel:'铁路 12306 App / 官网', url:'https://www.12306.cn/',
+    price:'清河↔八达岭 约 50 元/人', hot:3,
+    note:'火车票提前 15 天发售。国庆票极紧张，<b>务必买往返</b>，下午返程班次先售罄。' },
+  { target:'2026-10-05', name:'北京环球影城 一日票', open:'2026-07-07', time:'已开售',
+    channel:'官方 App / 小程序 / 飞猪旗舰店', url:'https://www.universalbeijingresort.com/',
+    price:'特定日约 748 元/人', hot:3,
+    note:'90 天滚动价格日历，国庆属<b>最高档「特定日」</b>。实名制指定日票，售完即止，越早越稳。' },
+  { target:'2026-10-02', name:'故宫博物院', open:'2026-09-25', time:'20:00 准点',
+    channel:'微信小程序「故宫博物院」', url:'https://ticket.dpm.org.cn/',
+    price:'60 + 10 + 10 元/人', hot:3,
+    note:'<b>本行程最关键的一抢。</b>不售当日票，20:00 放票后往往数分钟售罄。提前把 3 人身份证录入常用观众，准点提交；20:30 / 21:00 前后常有人退票，可捡漏。' },
+  { target:'2026-10-02', name:'天安门广场（含升旗时段）', open:'2026-09-25', time:'12:00 更新',
+    channel:'微信小程序「天安门广场预约参观」', url:'',
+    price:'免费', hot:2,
+    note:'可提前 1–7 日预约，每日 12:00 更新放号。升旗时段单独选，最难抢；只看白天场次压力小很多。' },
+  { target:'2026-10-03', name:'中国国家博物馆', open:'2026-09-26', time:'17:00',
+    channel:'「国家博物馆」公众号 / 小程序', url:'https://www.chnmuseum.cn/',
+    price:'免费', hot:3,
+    note:'提前 7 日 17:00 放票。<b>每账号每周限约 1 次、每次最多 5 人</b>——3 人正好一个账号搞定。预约成功当天可凭记录免约进广场。' },
+  { target:'2026-10-03', name:'北京动物园', open:'2026-09-26', time:'全天可约',
+    channel:'「北京动物园购票平台」公众号', url:'https://www.beijingzoo.com/',
+    price:'联票 19 元/人', hot:1,
+    note:'提前 1–7 天预约，刷身份证入园。票不紧张。' },
+  { target:'2026-10-04', name:'八达岭长城', open:'2026-09-27', time:'全天可约',
+    channel:'「八达岭长城」公众号 /「长城内外旅游」小程序', url:'https://www.badaling.cn/',
+    price:'40 元/人（索道另购 140）', hot:2,
+    note:'实名分时预约，<b>现场无售票窗口</b>。选 08:30–10:00 入园时段，避开 10:00–14:00 旅行团高峰。' },
+  { target:'2026-10-06', name:'清华大学 参观', open:'2026-09-28', time:'抽签 17:00–21:45',
+    channel:'微信小程序「参观清华」', url:'https://www.tsinghua.edu.cn/',
+    price:'免费', hot:3,
+    note:'<b>抽签制</b>：每日 17:00–21:45 提交申请，22:00 出结果，节假日最多提前 8 天。另有即时预约每日 08:00 放号。每周一闭校——10/6 是周二，符合。预约成功后 180 天内不可再约。' },
+  { target:'2026-10-06', name:'北京大学 参观', open:'2026-09-28', time:'抽签 17:00–21:45',
+    channel:'微信小程序「参观北大」', url:'https://www.pku.edu.cn/',
+    price:'免费', hot:3,
+    note:'规则同清华。国庆期间名额极紧，建议<b>清华和北大分别用不同账号</b>同时抽签，提高命中率。预约成功后 90 天内不可重复预约。' },
+  { target:'2026-10-06', name:'圆明园', open:'2026-09-29', time:'全天可约',
+    channel:'「圆明园遗址公园」公众号', url:'http://www.yuanmingyuanpark.cn/',
+    price:'联票 25 元/人', hot:1,
+    note:'提前 1–7 天预约，票充足。' }
+];
+
+/* =====================================================================
+   6. 渲染：导航
+   ===================================================================== */
+const NAV = [
+  ['overview','总览'], ['d0','10/1 抵京'], ['d1','10/2 D1'], ['d2','10/3 D2'],
+  ['d3','10/4 D3'], ['d4','10/5 D4'], ['d5','10/6 D5'],
+  ['budget','预算'], ['resv','预约日历'], ['tips','避坑清单']
+];
+let activeView = 'overview';
+let activeDay = null;
+
+const navEl = document.getElementById('nav');
+NAV.forEach(([id,label]) => {
+  const b = document.createElement('button');
+  b.textContent = label; b.dataset.v = id;
+  b.onclick = () => show(id);
+  navEl.appendChild(b);
+});
+
+function show(id){
+  if (!NAV.some(n => n[0] === id)) id = 'overview';
+  activeView = id;
+  if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.dataset.v === id));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
+  const day = DAYS.find(d => d.id === id);
+  activeDay = day || null;
+  drawRoutes();
+  if (window.innerWidth <= 1040) window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* =====================================================================
+   7. 地图
+   ===================================================================== */
+const BASES = {
+  amap: {
+    url:'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+    sub:'1234', gcj:true, max:18, attr:'© 高德地图'
+  },
+  amapsat: {
+    url:'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+    sub:'1234', gcj:true, max:18, attr:'© 高德地图'
+  },
+  osm: {
+    url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    sub:'abc', gcj:false, max:19, attr:'© OpenStreetMap'
+  }
+};
+let baseKey = 'amap';
+const map = L.map('map', { zoomControl:true, attributionControl:true }).setView([39.945, 116.36], 11);
+let tileLayer = null, routeLayer = L.layerGroup().addTo(map), markerLayer = L.layerGroup().addTo(map);
+
+function addBase(key){
+  baseKey = key;
+  needGcj = BASES[key].gcj;
+  if (tileLayer) map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(BASES[key].url, {
+    subdomains: BASES[key].sub, maxZoom: BASES[key].max, attribution: BASES[key].attr
+  }).addTo(map);
+  tileLayer.bringToBack();
+  drawRoutes();
+  if (userMarker) {
+    userMarker.setLatLng(P2(userWgs[0], userWgs[1]));
+    userAcc.setLatLng(P2(userWgs[0], userWgs[1]));
+  }
+}
+document.querySelectorAll('#baseSeg button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('#baseSeg button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    addBase(b.dataset.b);
+  };
+});
+
+function lineBadge(name){
+  const c = LC[name] || '#6B7280';
+  const lt = LIGHT_LINES.includes(name) ? ' lt' : '';
+  return `<span class="line${lt}" style="background:${c}">${name}</span>`;
+}
+
+function popupHtml(k){
+  const p = P[k];
+  if (!p) return '';
+  const nav = navUrl(k);
+  return `<b>${p.n}</b><br>` +
+    (p.price ? `<span style="color:#52514e">门票：</span><b>${p.price}</b><br>` : '') +
+    (p.resv ? `<span style="color:#52514e">预约：</span>${p.resv}<br>` : '') +
+    (p.hours ? `<span style="color:#52514e">时间：</span>${p.hours}<br>` : '') +
+    (p.note ? `<div style="margin-top:5px;color:#52514e">${p.note}</div>` : '') +
+    `<div style="margin-top:7px"><a href="${nav}" target="_blank" rel="noopener">在高德地图中导航 →</a></div>`;
+}
+
+function drawRoutes(){
+  routeLayer.clearLayers(); markerLayer.clearLayers();
+
+  // 基础标注：住处 + 全部枢纽/景点（淡）
+  Object.entries(P).forEach(([k,p]) => {
+    const isHub = p.k === 'hub' || p.k === 'base';
+    if (!isHub && !(activeDay && activeDay.stops.includes(k))) return;
+    const [lat,lng] = P2(p.lat, p.lng);
+    const cls = p.k === 'base' ? 'pnum base' : (isHub ? 'pnum dot' : 'pnum');
+    const txt = p.k === 'base' ? '★' : (isHub ? '' : '');
+    const icon = L.divIcon({ className:'', html:`<div class="${cls}">${txt}</div>`, iconSize:[24,24], iconAnchor:[12,12] });
+    L.marker([lat,lng], {icon}).addTo(markerLayer).bindPopup(popupHtml(k));
+  });
+
+  // 图例（任何时候都显示）
+  const legend = document.getElementById('legend');
+  legend.innerHTML = `<div class="li"><span class="dot" style="background:#eb6834"></span>住处（北宫）</div>
+    <div class="li"><span class="dot" style="background:#1baf7a"></span>地铁换乘枢纽</div>
+    <div class="li"><span class="dot" style="background:#2a78d6"></span>${activeDay ? '当日景点（数字＝顺序）' : '景点'}</div>
+    <div class="li" style="margin-top:5px;color:var(--muted)">${activeDay ? '虚线为示意路径，实际请点标记用高德导航' : '选择上方某一天查看当日路线'}</div>`;
+
+  if (!activeDay) { map.setView([39.945, 116.36], 11); return; }
+  const seq = activeDay.stops.filter(k => P[k]);
+  if (!seq.length) return;
+
+  const pts = seq.map((k,i) => {
+    const [lat,lng] = P2(P[k].lat, P[k].lng);
+    const icon = L.divIcon({ className:'', html:`<div class="pnum">${i+1}</div>`, iconSize:[24,24], iconAnchor:[12,12] });
+    L.marker([lat,lng], {icon, zIndexOffset:1000}).addTo(markerLayer).bindPopup(popupHtml(k));
+    return [lat,lng];
+  });
+  L.polyline(pts, {color:'#2a78d6', weight:3, opacity:.85, dashArray:'7 6', lineJoin:'round'}).addTo(routeLayer);
+  map.fitBounds(L.latLngBounds(pts).pad(.18), {maxZoom:13});
+}
+
+/* 高德导航链接（GCJ-02） */
+function navUrl(k){
+  const p = P[k]; if (!p) return '#';
+  const [lng,lat] = wgs2gcj(p.lng, p.lat);
+  return `https://uri.amap.com/marker?position=${lng.toFixed(6)},${lat.toFixed(6)}&name=${encodeURIComponent(p.n)}&src=beijing-trip&coordinate=gaode&callnative=0`;
+}
+function navRouteUrl(fromK, toK){
+  const a = P[fromK], b = P[toK]; if (!a||!b) return '#';
+  const [l1,a1] = wgs2gcj(a.lng,a.lat), [l2,a2] = wgs2gcj(b.lng,b.lat);
+  return `https://uri.amap.com/navigation?from=${l1.toFixed(6)},${a1.toFixed(6)},${encodeURIComponent(a.n)}&to=${l2.toFixed(6)},${a2.toFixed(6)},${encodeURIComponent(b.n)}&mode=bus&coordinate=gaode&callnative=0`;
+}
+
+/* =====================================================================
+   8. GPS 定位
+   ===================================================================== */
+let userMarker = null, userAcc = null, userWgs = null, watchId = null;
+const gpsEl = document.getElementById('gps');
+document.getElementById('btnLoc').onclick = () => {
+  if (!navigator.geolocation) { gpsEl.textContent = '此浏览器不支持定位'; return; }
+  gpsEl.innerHTML = '正在定位…（首次可能需 10–20 秒，请允许权限）';
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(onPos, onPosErr, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+};
+function onPos(pos){
+  const {latitude:lat, longitude:lng, accuracy:acc} = pos.coords;
+  userWgs = [lat, lng];
+  const ll = P2(lat, lng);
+  if (!userMarker){
+    userMarker = L.circleMarker(ll, {radius:7, color:'#fff', weight:2, fillColor:'#2a78d6', fillOpacity:1}).addTo(map);
+    userAcc = L.circle(ll, {radius:acc, color:'#2a78d6', weight:1, fillOpacity:.10}).addTo(map);
+  } else { userMarker.setLatLng(ll); userAcc.setLatLng(ll).setRadius(acc); }
+
+  let rows = Object.entries(P).map(([k,p]) => {
+    const d = haversine(lat, lng, p.lat, p.lng);
+    return {k, d, n:p.n};
+  }).sort((a,b) => a.d - b.d).slice(0,4);
+
+  gpsEl.innerHTML = `已定位 · 精度约 <b>${Math.round(acc)} m</b><br>` +
+    rows.map(r => `<div style="display:flex;gap:6px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.n}</span><b>${r.d < 1 ? Math.round(r.d*1000)+' m' : r.d.toFixed(1)+' km'}</b></div>`).join('');
+}
+function onPosErr(e){
+  const m = {1:'定位权限被拒绝，请在浏览器/系统设置中允许', 2:'暂时无法获取位置（信号弱）', 3:'定位超时'};
+  let msg = m[e.code] || '定位失败';
+  if (location.protocol === 'file:'){
+    msg += '<br><span style="color:var(--muted)">用 file:// 直接打开时浏览器常拒绝定位。在本文件夹执行 <b>python -m http.server 8080</b>，再访问 http://localhost:8080 即可。</span>';
+  }
+  gpsEl.innerHTML = msg;
+}
+function haversine(a1,o1,a2,o2){
+  const R = 6371, r = Math.PI/180;
+  const dp = (a2-a1)*r, dl = (o2-o1)*r;
+  const x = Math.sin(dp/2)**2 + Math.cos(a1*r)*Math.cos(a2*r)*Math.sin(dl/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+document.getElementById('btnNav').onclick = () => {
+  if (!activeDay || !activeDay.stops.length){ alert('请先切换到某一天的行程页'); return; }
+  const target = activeDay.stops[activeDay.stops.length - 1];
+  if (!userWgs){ window.open(navUrl(target), '_blank'); return; }
+  const p = P[target];
+  const [lng,lat] = wgs2gcj(p.lng, p.lat);
+  const [ul,ua] = wgs2gcj(userWgs[1], userWgs[0]);
+  window.open(`https://uri.amap.com/navigation?from=${ul.toFixed(6)},${ua.toFixed(6)},我的位置&to=${lng.toFixed(6)},${lat.toFixed(6)},${encodeURIComponent(p.n)}&mode=bus&coordinate=gaode&callnative=0`, '_blank');
+};
+
+/* =====================================================================
+   9. 视图渲染
+   ===================================================================== */
+const views = document.getElementById('views');
+const esc = s => String(s);
+
+/* --- 总览 --- */
+function renderOverview(){
+  const total = TICKETS.reduce((a,b)=>a+b[1],0);
+  return `<div class="view" id="v-overview">
+    <div class="card">
+      <div class="cap">人均核心预算（不含往返北京大交通）</div>
+      <div class="hero">¥${(total + 290 + MEALS_PER_DAY*5 + Math.round(HOTEL_DEFAULT*HOTEL_NIGHTS/3)).toLocaleString()}</div>
+      <div class="note" style="margin-top:6px">门票 ¥${total} ＋ 交通 ¥290 ＋ 餐饮 ¥${MEALS_PER_DAY*5} ＋ 住宿 ¥${Math.round(HOTEL_DEFAULT*HOTEL_NIGHTS/3)}（按 1 间三人房 ¥${HOTEL_DEFAULT}/晚 × ${HOTEL_NIGHTS} 晚 ÷ 3 人）</div>
+      <div class="tiles">
+        <div class="tile"><div class="l">三人合计</div><div class="v">¥${((total+290+MEALS_PER_DAY*5+Math.round(HOTEL_DEFAULT*HOTEL_NIGHTS/3))*3).toLocaleString()}</div><div class="s">3 人 × 5 天</div></div>
+        <div class="tile"><div class="l">门票合计 / 人</div><div class="v">¥${total}</div><div class="s">环球影城占 ${Math.round(748/total*100)}%</div></div>
+        <div class="tile"><div class="l">需要预约的项目</div><div class="v">${RESV.length}</div><div class="s">全部需线上实名预约</div></div>
+        <div class="tile"><div class="l">最远单程</div><div class="v">1h45</div><div class="s">住地 → 环球影城</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>行程一览</h3>
+      <div class="cap">五天覆盖全部目标点位，按「地理位置聚类」排布，尽量少走回头路</div>
+      <div class="hr"></div>
+      ${DAYS.filter(d=>d.id!=='d0').map(d => `
+        <div style="display:grid;grid-template-columns:88px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--grid)">
+          <div style="font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums">${d.date.slice(5)} ${d.dow}</div>
+          <div><div style="font-weight:640">${d.theme}</div>
+          <div class="note">${d.stops.map(k=>P[k]?P[k].n:'').filter(Boolean).join(' → ')}</div></div>
+        </div>`).join('')}
+    </div>
+
+    <div class="card" style="border-color:color-mix(in srgb,var(--crit) 40%,var(--border))">
+      <h3>三个硬约束（先看这个）</h3>
+      <div class="hr"></div>
+      <div style="display:grid;gap:11px">
+        <div><span class="pill" style="border-color:var(--crit);color:var(--crit)">1</span>
+          <b style="margin-left:8px">天安门东 / 天安门西 / 前门站 08:00–18:00 封站</b>
+          <div class="note" style="margin-top:3px">10/2–10/6 期间分时段运营：首班车–06:30 封闭，06:30–08:00 <b>只出不进</b>，08:00–18:00 列车通过不停车，18:00 后恢复。<br>
+          → 去故宫必须 <b>08:00 前</b>从天安门东/西出站；其余时间去国博、广场一律改走 <b>1 号线王府井站</b> 步行进入。</div></div>
+        <div><span class="pill" style="border-color:var(--crit);color:var(--crit)">2</span>
+          <b style="margin-left:8px">故宫、国博不售当日票，放票即抢空</b>
+          <div class="note" style="margin-top:3px">故宫提前 7 日 <b>20:00</b>、国博提前 7 日 <b>17:00</b> 准点放票。请把 3 人身份证<b>提前录入</b>常用联系人，放票前 5 分钟打开小程序待命。</div></div>
+        <div><span class="pill" style="border-color:var(--warn);color:var(--serious)">3</span>
+          <b style="margin-left:8px">住地偏远，每天通勤 1.5–2 小时</b>
+          <div class="note" style="margin-top:3px">北宫森林公园一带最近地铁是 14 号线<b>张郭庄站</b>（约 4–5 km，需打车或换 574/843 路公交）。本行程所有时间都按「打车到张郭庄 + 地铁」估算，早起是必须的。</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* --- 某一天 --- */
+function renderDay(d){
+  const stops = d.stops.filter(k=>P[k]);
+  return `<div class="view" id="v-${d.id}">
+    <div class="card">
+      <div class="cap">${d.date} · ${d.dow}</div>
+      <h3 style="font-size:19px;margin-top:2px">${d.theme}</h3>
+      <div class="links" style="margin-top:11px">
+        ${stops.map((k,i)=>`<a href="${navUrl(k)}" target="_blank" rel="noopener">${i+1}. ${P[k].n}</a>`).join('')}
+      </div>
+    </div>
+    <div class="tl">
+      ${d.plan.map(ev => `
+        <div class="ev ${ev.type}">
+          <div class="time">${ev.t}</div>
+          <div class="body">
+            <div class="h">${ev.h}
+              ${ev.poi && P[ev.poi] ? `<span class="tag">${P[ev.poi].price || ''}</span>` : ''}
+            </div>
+            <div class="d">${ev.d}</div>
+            ${ev.legs ? ev.legs.map(g => `
+              <div class="leg">
+                <div class="row">${g.lines.map(l => lineBadge(l[0]) + `<span class="meta">${l[1]} · ${l[2]} 站 · 约 ${l[3]} 分</span>`).join('<span class="meta">→</span>')}
+                  <span class="fare">${g.fare}</span></div>
+                <div class="row"><span class="meta">合计约 ${g.min} 分钟</span></div>
+              </div>`).join('') : ''}
+            ${ev.warn ? `<div class="warn">⚠️ ${ev.warn}</div>` : ''}
+            ${ev.poi && P[ev.poi] ? poiDetail(ev.poi) : ''}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function poiDetail(k){
+  const p = P[k];
+  return `<div style="margin-top:10px">
+    <dl class="kv">
+      ${p.addr ? `<dt>地址</dt><dd>${p.addr}</dd>` : ''}
+      <dt>门票</dt><dd>${p.price || '—'}</dd>
+      <dt>预约</dt><dd>${p.resv || '无需预约'}</dd>
+      <dt>开放</dt><dd>${p.hours || '—'}</dd>
+      <dt>建议</dt><dd>${p.dur || '—'}</dd>
+      <dt>坐标</dt><dd style="font-variant-numeric:tabular-nums">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}（WGS-84）</dd>
+    </dl>
+    <div class="links">
+      <a class="pri" href="${navUrl(k)}" target="_blank" rel="noopener">📍 高德导航</a>
+      ${p.ticketUrl ? `<a href="${p.ticketUrl}" target="_blank" rel="noopener">🎫 官方购票</a>` : ''}
+      <button onclick="flyTo('${k}')">🗺 地图定位</button>
+    </div>
+  </div>`;
+}
+window.flyTo = k => {
+  const p = P[k]; if (!p) return;
+  map.flyTo(P2(p.lat, p.lng), 15, {duration:.8});
+};
+
+/* --- 预算 --- */
+function renderBudget(){
+  const ticketSum = TICKETS.reduce((a,b)=>a+b[1],0);
+  const transSum  = TRANSPORT.reduce((a,b)=>a+b[1],0);
+  const mealSum   = MEALS_PER_DAY * 5;
+  const hotelPP   = Math.round(HOTEL_DEFAULT * HOTEL_NIGHTS / 3);
+  const total     = ticketSum + transSum + mealSum + hotelPP;
+  const cats = [
+    ['门票预约', ticketSum, '#2a78d6'],
+    ['住宿', hotelPP, '#eb6834'],
+    ['餐饮', mealSum, '#1baf7a'],
+    ['市内交通', transSum, '#eda100']
+  ];
+  const max = Math.max(...cats.map(c=>c[1]));
+  const optSum = OPTIONAL.reduce((a,b)=>a+b[1],0);
+
+  return `<div class="view" id="v-budget">
+    <div class="card">
+      <div class="cap">人均总预算（不含往返北京的大交通）</div>
+      <div class="hero">¥${total.toLocaleString()}</div>
+      <div class="note" style="margin-top:4px">三人合计 <b style="color:var(--ink)">¥${(total*3).toLocaleString()}</b>　·　日均 ¥${Math.round(total/5).toLocaleString()}/人</div>
+      <div class="tiles">
+        <div class="tile"><div class="l">门票 / 预约</div><div class="v">¥${ticketSum}</div><div class="s">占 ${Math.round(ticketSum/total*100)}%</div></div>
+        <div class="tile"><div class="l">住宿</div><div class="v">¥${hotelPP}</div><div class="s">¥${HOTEL_DEFAULT}/晚 × ${HOTEL_NIGHTS} 晚 ÷ 3</div></div>
+        <div class="tile"><div class="l">餐饮</div><div class="v">¥${mealSum}</div><div class="s">¥${MEALS_PER_DAY}/天 × 5</div></div>
+        <div class="tile"><div class="l">市内交通</div><div class="v">¥${transSum}</div><div class="s">地铁 + 高铁 + 打车</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>费用构成</h3>
+      <div class="cap">人均金额（元）· 悬停查看数值</div>
+      <div class="chart">
+        ${cats.map(c=>`<div class="brow" title="${c[0]}：¥${c[1]}">
+          <div class="bl">${c[0]}</div>
+          <div class="btrack"><div class="bfill" style="width:${(c[1]/max*100).toFixed(1)}%;background:${c[2]}"></div><span class="bval">¥${c[1].toLocaleString()}</span></div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>门票明细 <span class="note">（可改）</span></h3>
+      <table>
+        <thead><tr><th>项目</th><th>说明</th><th class="num">单价</th><th class="num">×3 人</th></tr></thead>
+        <tbody>${TICKETS.map((t,i)=>`<tr>
+          <td>${t[0]}</td><td class="note">${t[2]}</td>
+          <td class="num">¥${t[1]}</td><td class="num">¥${t[1]*3}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>门票小计</td><td></td><td class="num">¥${ticketSum}</td><td class="num">¥${ticketSum*3}</td></tr></tfoot>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>交通明细</h3>
+      <table>
+        <thead><tr><th>项目</th><th>说明</th><th class="num">人均</th></tr></thead>
+        <tbody>${TRANSPORT.map(t=>`<tr><td>${t[0]}</td><td class="note">${t[2]}</td><td class="num">¥${t[1]}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>交通小计</td><td></td><td class="num">¥${transSum}</td></tr></tfoot>
+      </table>
+      <div class="note" style="margin-top:9px">
+        北京地铁计价：6 km 内 3 元，6–12 km 4 元，12–22 km 5 元，22–32 km 6 元，之后每 20 km 加 1 元。
+        本行程单程多在 5–9 元区间。<b>建议每人装「亿通行」App 扫码乘车</b>，无需办卡。
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>住宿与可选消费</h3>
+      <table>
+        <tbody>
+          <tr><td>住宿（三人房 / 家庭房 每晚）</td><td class="num"><input type="number" id="hotelIn" value="${HOTEL_DEFAULT}" step="50" min="0"></td></tr>
+          <tr><td>入住晚数</td><td class="num"><input type="number" id="nightIn" value="${HOTEL_NIGHTS}" step="1" min="1"></td></tr>
+          <tr><td>人均住宿</td><td class="num" id="hotelPPOut">¥${hotelPP}</td></tr>
+        </tbody>
+      </table>
+      <div class="hr"></div>
+      <table>
+        <thead><tr><th>可选升级</th><th>说明</th><th class="num">人均</th></tr></thead>
+        <tbody>${OPTIONAL.map(o=>`<tr><td>${o[0]}</td><td class="note">${o[2]}</td><td class="num">¥${o[1]}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td>全选增加</td><td></td><td class="num">¥${optSum}</td></tr></tfoot>
+      </table>
+      <div class="note" style="margin-top:9px">
+        北宫森林公园一带属北京西南郊区，国庆期间周边住宿选择有限，建议<b>尽早预订</b>并确认「可免费取消」。
+        若预算允许，可考虑把住宿改到 <b>14 号线沿线</b>（如西局、北京南站附近），每天能省下 40–60 分钟通勤。
+      </div>
+    </div>
+  </div>`;
+}
+
+/* --- 预约日历 --- */
+function renderResv(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rows = RESV.map(r => {
+    const open = new Date(r.open + 'T00:00:00');
+    const days = Math.round((open - today) / 86400000);
+    let cls = '', label = '';
+    if (days < 0){ cls = 'done'; label = '已开售'; }
+    else if (days === 0){ cls = 'hot'; label = '今天'; }
+    else if (days <= 2){ cls = 'hot'; label = `${days} 天后`; }
+    else if (days <= 7){ cls = 'soon'; label = `${days} 天后`; }
+    else { label = `${days} 天后`; }
+    return {...r, days, cls, label};
+  }).sort((a,b) => a.days - b.days);
+
+  return `<div class="view" id="v-resv">
+    <div class="card">
+      <h3>预约倒计时</h3>
+      <div class="cap">按行程日期倒推的放票日 · 越靠前越紧急</div>
+      <div class="note" style="margin-top:8px">今天是 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}。抢票放票时间均来自官方规则，<b>具体仍以官方渠道当日公告为准</b>。</div>
+    </div>
+    <div class="card">
+      ${rows.map(r => `
+        <div class="resv">
+          <div class="cd ${r.cls}"><div class="n">${r.days < 0 ? '✓' : r.days}</div><div class="u">${r.days < 0 ? '已开售' : '天后'}</div></div>
+          <div class="rb">
+            <div class="rt">${r.name}
+              <span class="pill">${r.open.slice(5)} ${r.time}</span>
+              <span class="pill">用于 ${r.target.slice(5)}</span>
+            </div>
+            <div class="note" style="margin-top:4px"><b style="color:var(--ink)">${r.price}</b>　·　渠道：${r.channel}</div>
+            <div class="note" style="margin-top:4px">${r.note}</div>
+            ${r.url ? `<div class="links"><a href="${r.url}" target="_blank" rel="noopener">🔗 官方入口</a></div>` : `<div class="links"><span class="pill">微信内搜索小程序</span></div>`}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* --- 避坑 --- */
+function renderTips(){
+  const items = [
+    ['🚇','地铁封站','10/2–10/6，1 号线天安门东/西站、8 号线前门站分时段封闭：首班车–06:30 封闭，06:30–08:00 只出不进，08:00–18:00 列车通过不停车，18:00 后恢复。天安门西 A 口、天安门东 D 口全期封闭。<b>去故宫必须 08:00 前出站</b>，其他时间去广场/国博一律走王府井站步行进入。'],
+    ['🎫','故宫抢票','提前 7 日 20:00 准点放票，不售当日票。提前把 3 人身份证录入「常用观众」。20:00 没抢到别放弃——20:30、21:00 前后常有人退票回流。珍宝馆、钟表馆各 10 元，一起约。'],
+    ['🏛','国博规则','提前 7 日 17:00 放票，<b>每账号每周限约 1 次、每次最多 5 人</b>，3 人正好一个账号搞定。每个证件号累计 3 次未履约会被限制预约 30 天——约了就一定要去，或提前取消。'],
+    ['🎓','清北参观','两校均为抽签 + 即时预约双轨：抽签每日 17:00–21:45 提交、22:00 出结果；即时预约每日 08:00 放号。清华每周一闭校。预约成功后清华 180 天、北大 90 天内不可重复预约。<b>凡声称「付费保证入校」的都是诈骗</b>，黄牛收费 200–600 元。'],
+    ['🚄','长城高铁','京张高铁从<b>清河站</b>或<b>北京北站</b>出发，到八达岭长城站约 25–30 分钟，二等座 25–31 元。火车票提前 15 天发售，国庆票极紧张，<b>务必买往返</b>——下午返程班次先售罄。八达岭长城站出站右转＝北线索道，左转＝南线地缆。'],
+    ['🎢','环球影城','国庆属最高档「特定日」（约 748 元），90 天滚动放票，越早买越稳。务必下<b>官方 App</b> 看实时排队、抢优速通。开园前 1 小时到闸机，进园先冲哈利波特禁忌之旅。'],
+    ['🐼','动物园熊猫馆','大熊猫馆新馆 2026/7/16 开放，08:00 开、18:00 关。熊猫上午最活跃。<b>出馆再进需重新购票</b>，所以进去了就一次看完。买联票 19 元比单买划算。'],
+    ['🪪','证件','所有景点都要<b>身份证原件</b>，刷证入园。3 人证件集中放在一个人身上最省事。免票群体（18 岁以下、60 岁以上）也需预约，且要带好证件。'],
+    ['🌤','天气与装备','10 月初北京早晚温差大（10–22℃），长城上风大，带一件防风外套。全程步行量大（日均 1.5–2 万步），务必穿<b>已经穿惯的运动鞋</b>，别穿新鞋。'],
+    ['💰','支付与网络','全城支持微信/支付宝。「亿通行」App 扫码乘地铁。故宫、国博内信号一般，建议提前截图预约二维码。'],
+    ['⏰','时间纪律','住地偏远，每天通勤 1.5–2 小时。本行程所有出发时间都留了余量，但如果晚于计划 30 分钟出发，当天后续行程就会连锁延误。'],
+    ['📵','别信的事','不要通过第三方「代抢」购票；不要相信景点门口拉客的「一日游」「低价长城团」（多为购物团）。所有预约一律走官方公众号/小程序。']
+  ];
+  return `<div class="view" id="v-tips">
+    <div class="card"><h3>避坑清单</h3><div class="cap">12 条，按重要程度排序</div></div>
+    ${items.map((it,i)=>`<div class="card" style="display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start">
+      <div style="font-size:21px;line-height:1.2">${it[0]}</div>
+      <div><div style="font-weight:650;font-size:15px">${it[1]}</div>
+      <div class="note" style="margin-top:4px;font-size:13.5px;color:var(--ink-2)">${it[2]}</div></div>
+    </div>`).join('')}
+    <div class="card" style="border-color:color-mix(in srgb,var(--warn) 45%,var(--border))">
+      <h3>免责说明</h3>
+      <div class="note" style="margin-top:6px;font-size:13.5px">
+        本页门票价格、开放时间、预约规则整理于 <b>2026 年 9 月</b>，来源为各景点官方渠道及公开报道。
+        国庆期间政策、票价（尤其环球影城的动态价格日历）与地铁运营调整<b>可能变动</b>，
+        出行前请以官方公众号 / 小程序的最新公告为准。地图坐标为 WGS-84 近似值，实际导航请点击各处的「高德导航」按钮。
+      </div>
+    </div>
+  </div>`;
+}
+
+/* =====================================================================
+   10. 启动
+   ===================================================================== */
+views.innerHTML = renderOverview() + DAYS.map(renderDay).join('') + renderBudget() + renderResv() + renderTips();
+
+// 住宿输入联动（change 而非 input，避免重绘打断输入光标）
+function rerenderBudget(){
+  const el = document.getElementById('v-budget');
+  if (!el) return;
+  el.outerHTML = renderBudget();
+  bindHotel();
+}
+function bindHotel(){
+  const h = document.getElementById('hotelIn'), n = document.getElementById('nightIn');
+  if (!h) return;
+  const upd = () => {
+    HOTEL_DEFAULT = Math.max(0, Number(h.value || 0));
+    HOTEL_NIGHTS  = Math.max(1, Number(n.value || 1));
+    rerenderBudget();
+    const ov = document.getElementById('v-overview');
+    if (ov) ov.outerHTML = renderOverview();
+  };
+  h.onchange = upd; n.onchange = upd;
+}
+bindHotel();
+
+document.getElementById('btnTheme').onclick = () => {
+  const cur = document.documentElement.dataset.theme;
+  document.documentElement.dataset.theme = cur === 'dark' ? 'light' : 'dark';
+};
+document.getElementById('btnPrint').onclick = () => window.print();
+
+addBase('amap');
+show(location.hash.slice(1) || 'overview');
+window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+
+/* 窄屏提示：手机上建议改用 mobile.html（可安装到主屏幕的 PWA）。
+   仅在小屏注入，不影响桌面端任何布局。 */
+if (window.matchMedia('(max-width: 700px)').matches) {
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;left:10px;right:10px;bottom:10px;z-index:9999;' +
+    'background:#1a1a19;color:#fff;border-radius:14px;padding:11px 13px;font-size:13px;' +
+    'display:flex;align-items:center;gap:10px;box-shadow:0 6px 24px rgba(0,0,0,.35)';
+  bar.innerHTML = '<span style="flex:1;line-height:1.45">手机上用<b>手机版</b>更顺手：全屏地图、打卡进度、可加到主屏幕</span>' +
+    '<a href="mobile.html" style="background:#3987e5;color:#fff;text-decoration:none;' +
+    'padding:8px 14px;border-radius:10px;font-weight:600;white-space:nowrap">打开</a>' +
+    '<button aria-label="关闭" style="background:none;border:none;color:#898781;font-size:20px;' +
+    'line-height:1;padding:0 2px;cursor:pointer">×</button>';
+  bar.querySelector('button').onclick = () => bar.remove();
+  document.body.appendChild(bar);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# 仓库里统一用 LF。build.sh 是 bash 脚本，带 CRLF 在 Linux/WSL 上会报 bad interpreter。
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.apk binary
+*.jks binary
